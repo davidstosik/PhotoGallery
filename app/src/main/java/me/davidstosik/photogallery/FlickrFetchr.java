@@ -1,12 +1,9 @@
 package me.davidstosik.photogallery;
 
-import android.net.LocalServerSocket;
 import android.net.Uri;
 import android.util.Log;
 
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
+import com.google.gson.GsonBuilder;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -15,6 +12,9 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
+
+import me.davidstosik.photogallery.flickr.GalleryItem;
+import me.davidstosik.photogallery.flickr.PhotosResponse;
 
 /**
  * Created by sto on 2017/01/20.
@@ -69,39 +69,19 @@ public class FlickrFetchr {
                     .build().toString();
             String jsonString = getUrlString(url);
             Log.i(TAG, "Received JSON: " + jsonString);
-            JSONObject jsonBody = new JSONObject(jsonString);
-            parseItems(items, jsonBody);
+
+            items = new GsonBuilder().create()
+                    .fromJson(jsonString, PhotosResponse.class)
+                    .getPhotosPage()
+                    .getGalleryItems();
+
             for (int i = 0; i < items.size(); i++) {
                 Log.i(TAG, "fetchItems: " + items.get(i).getCaption());
             }
-        } catch (JSONException je) {
-            Log.e(TAG, "Failed to parse JSON", je);
         } catch (IOException ioe) {
             Log.e(TAG, "Failed to fetch items: ", ioe);
         }
 
         return items;
-    }
-
-    private void parseItems(List<GalleryItem> items, JSONObject jsonBody)
-            throws IOException, JSONException {
-
-        JSONObject photosJsonObject = jsonBody.getJSONObject("photos");
-        JSONArray photosJsonArray = photosJsonObject.getJSONArray("photo");
-
-        for(int i = 0; i < photosJsonArray.length(); i++) {
-            JSONObject photoJsonObject = photosJsonArray.getJSONObject(i);
-
-            GalleryItem item = new GalleryItem();
-            item.setId(photoJsonObject.getString("id"));
-            item.setCaption(photoJsonObject.getString("title"));
-
-            if (!photoJsonObject.has("url_s")) {
-                continue;
-            }
-
-            item.setUrl(photoJsonObject.getString("url_s"));
-            items.add(item);
-        }
     }
 }
