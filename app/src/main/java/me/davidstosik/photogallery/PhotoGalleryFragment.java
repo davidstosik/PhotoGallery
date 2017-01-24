@@ -9,6 +9,7 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
 import android.widget.TextView;
 
 import java.util.ArrayList;
@@ -26,6 +27,8 @@ public class PhotoGalleryFragment extends Fragment {
     private RecyclerView mPhotoRecyclerView;
     private List<GalleryItem> mItems = new ArrayList<>();
     private int mLastPage;
+    private int mSpanCount;
+    private int mCellSize;
 
     public static PhotoGalleryFragment newInstance() {
         return new PhotoGalleryFragment();
@@ -44,7 +47,18 @@ public class PhotoGalleryFragment extends Fragment {
         View v = inflater.inflate(R.layout.fragment_photo_gallery, container, false);
 
         mPhotoRecyclerView = (RecyclerView) v.findViewById(R.id.fragment_photo_gallery_recycler_view);
-        mPhotoRecyclerView.setLayoutManager(new GridLayoutManager(getActivity(), 3));
+
+        mPhotoRecyclerView.getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
+            @Override
+            public void onGlobalLayout() {
+                setSpanCount();
+                GridLayoutManager layoutManager = (GridLayoutManager) mPhotoRecyclerView.getLayoutManager();
+                layoutManager.setSpanCount(mSpanCount);
+            }
+        });
+
+        GridLayoutManager layoutManager = new GridLayoutManager(getActivity(), getMinSpanCount());
+        mPhotoRecyclerView.setLayoutManager(layoutManager);
 
         setupAdapter();
 
@@ -74,9 +88,29 @@ public class PhotoGalleryFragment extends Fragment {
                 });
             } else {
                 adapter.notifyItemInserted(mItems.size() - 1);
-                mPhotoRecyclerView.scrollBy(0, 100);
+                mPhotoRecyclerView.scrollBy(0, mCellSize / 4);
             }
         }
+    }
+
+    private int getMinSpanCount() {
+        return getResources().getInteger(R.integer.min_span_count);
+    }
+
+    private void setSpanCount() {
+        float width = mPhotoRecyclerView.getWidth();
+        float minWidth = getResources().getDimension(R.dimen.min_cell_width);
+
+        Log.d(TAG, "setSpanCount: width = " + width);
+        Log.d(TAG, "setSpanCount: minWidth = " + minWidth);
+
+        int computedSpanCount = (int) Math.floor(width / minWidth);
+        Log.d(TAG, "setSpanCount: computed span count = " + computedSpanCount);
+        mSpanCount = Math.max(computedSpanCount, getMinSpanCount());
+        Log.d(TAG, "setSpanCount: final span count = " + mSpanCount);
+
+        mCellSize = (int) width / mSpanCount;
+        Log.d(TAG, "setSpanCount: cellSize = " + mCellSize);
     }
 
     private class PhotoHolder extends RecyclerView.ViewHolder {
@@ -103,7 +137,7 @@ public class PhotoGalleryFragment extends Fragment {
         @Override
         public PhotoHolder onCreateViewHolder(ViewGroup viewGroup, int viewType) {
             TextView textView = new TextView(getActivity());
-            textView.setHeight(400);
+            textView.setHeight(mCellSize);
             return new PhotoHolder(textView);
         }
 
