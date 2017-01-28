@@ -15,6 +15,8 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
 import android.widget.ImageView;
+import android.widget.ProgressBar;
+import android.widget.RelativeLayout;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -148,15 +150,27 @@ public class PhotoGalleryFragment extends Fragment {
 
     private class PhotoHolder extends RecyclerView.ViewHolder {
         private ImageView mItemImageView;
+        private ProgressBar mItemProgressBar;
 
         public PhotoHolder(View itemView) {
             super(itemView);
+            RelativeLayout layout = (RelativeLayout) itemView.findViewById(R.id.fragment_photo_gallery_layout);
             mItemImageView = (ImageView) itemView.findViewById(R.id.fragment_photo_gallery_image_view);
-            mItemImageView.getLayoutParams().height = mCellSize;
+            mItemProgressBar = (ProgressBar) itemView.findViewById(R.id.fragment_photo_gallery_progress_bar);
+
+            layout.getLayoutParams().height = mCellSize;
         }
 
         public void bindDrawable(Drawable drawable) {
             mItemImageView.setImageDrawable(drawable);
+            mItemImageView.setVisibility(View.VISIBLE);
+            mItemProgressBar.setVisibility(View.GONE);
+        }
+
+        public void unbindDrawable() {
+            mItemImageView.setImageDrawable(null);
+            mItemImageView.setVisibility(View.GONE);
+            mItemProgressBar.setVisibility(View.VISIBLE);
         }
     }
 
@@ -177,8 +191,7 @@ public class PhotoGalleryFragment extends Fragment {
         @Override
         public void onBindViewHolder(PhotoHolder photoHolder, int position) {
             GalleryItem galleryItem = mGalleryItems.get(position);
-            Drawable placeHolder = getResources().getDrawable(R.drawable.bill_up_close);
-            photoHolder.bindDrawable(placeHolder);
+            photoHolder.unbindDrawable();
             mThumbnailDownloader.queueThumbnail(photoHolder, galleryItem.getUrl());
         }
 
