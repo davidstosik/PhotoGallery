@@ -1,5 +1,7 @@
 package me.davidstosik.photogallery;
 
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.util.Log;
 
@@ -84,5 +86,15 @@ public class FlickrFetchr {
         }
 
         return items;
+    }
+
+    public Bitmap fetchImage(String urlSpec) {
+        try {
+            byte[] bitmapBytes = new FlickrFetchr().getUrlBytes(urlSpec);
+            return BitmapFactory.decodeByteArray(bitmapBytes, 0, bitmapBytes.length);
+        } catch (IOException ioe) {
+            Log.e(TAG, "Failed to fetch image: ", ioe);
+            return null;
+        }
     }
 }
