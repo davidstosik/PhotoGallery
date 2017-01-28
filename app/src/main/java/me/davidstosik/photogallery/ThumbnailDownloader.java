@@ -6,6 +6,7 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Message;
 import android.util.Log;
+import android.util.LruCache;
 
 import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -18,12 +19,14 @@ import java.util.concurrent.ConcurrentMap;
 public class ThumbnailDownloader<T> extends HandlerThread {
     public static final String TAG = "ThumbnailDownloader";
     public static final int MESSAGE_DOWNLOAD = 0;
+    public static final int IMAGE_CACHE_SIZE = 16 * 1024 * 1024; // 16MiB
 
     private boolean mHasQuit = false;
     private Handler mRequestHandler;
     private ConcurrentMap<T, String> mRequestMap = new ConcurrentHashMap();
     private Handler mResponseHandler;
     private ThumbnailDownloadListener<T> mThumbnailDownloadListener;
+    private LruCache<String, Bitmap> mImagesCache;
 
     public interface ThumbnailDownloadListener<T> {
         void onThumbnailDownloaded(T target, Bitmap thumbnail);
@@ -48,6 +51,18 @@ public class ThumbnailDownloader<T> extends HandlerThread {
                     Log.i(TAG, "handleMessage: Got a request for URL: " + mRequestMap.get(target));
                     handleRequest(target);
                 }
+            }
+        };
+        mImagesCache = new LruCache<String, Bitmap>(IMAGE_CACHE_SIZE) {
+            @Override
+            protected int sizeOf(String key, Bitmap value) {
+                return value.getByteCount();
+            }
+
+            @Override
+            protected Bitmap create(String key) {
+                Log.i(TAG, "create: Bitmap not found in cache...");
+                return new FlickrFetchr().fetchImage(key);
             }
         };
     }
@@ -78,7 +93,11 @@ public class ThumbnailDownloader<T> extends HandlerThread {
         if (url == null) {
             return;
         }
-        final Bitmap bitmap = new FlickrFetchr().fetchImage(url);
+
+        final Bitmap bitmap;
+        synchronized (mImagesCache) {
+            bitmap = mImagesCache.get(url);
+        }
         Log.i(TAG, "handleRequest: Bitmap created");
 
         mResponseHandler.post(new Runnable() {
