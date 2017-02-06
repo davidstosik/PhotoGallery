@@ -107,14 +107,21 @@ public class PhotoGalleryFragment extends Fragment {
             if (adapter == null) {
                 adapter = new PhotoAdapter(mItems);
                 mPhotoRecyclerView.setAdapter(adapter);
-                mPhotoRecyclerView.setOnScrollListener(new RecyclerView.OnScrollListener() {
+                mPhotoRecyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
                     @Override
-                    public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
-                        super.onScrolled(recyclerView, dx, dy);
+                    public void onScrollStateChanged(RecyclerView recyclerView, int newState) {
+                        Log.d(TAG, "onScrollStateChanged: " + newState);
+                        super.onScrollStateChanged(recyclerView, newState);
+
+                        if (newState != RecyclerView.SCROLL_STATE_IDLE) {
+                            return;
+                        }
+
                         GridLayoutManager layoutManager = (GridLayoutManager) mPhotoRecyclerView.getLayoutManager();
                         int totalItemCount = layoutManager.getItemCount();
-                        int lastCompletelyVisibleItem = layoutManager.findLastCompletelyVisibleItemPosition();
-                        if (lastCompletelyVisibleItem == totalItemCount - 1) {
+                        int lastVisibleItem = layoutManager.findLastVisibleItemPosition();
+
+                        if (lastVisibleItem == totalItemCount - 1) {
                             Log.d(TAG, "onScrolled: End of list");
                             mLastPage++;
                             new FetchItemsTask().execute(mLastPage);
@@ -123,7 +130,6 @@ public class PhotoGalleryFragment extends Fragment {
                 });
             } else {
                 adapter.notifyItemInserted(mItems.size() - 1);
-                mPhotoRecyclerView.scrollBy(0, mCellSize / 4);
             }
         }
     }
