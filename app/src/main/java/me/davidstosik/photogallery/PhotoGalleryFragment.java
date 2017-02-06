@@ -36,6 +36,7 @@ public class PhotoGalleryFragment extends Fragment {
     private int mLastPage;
     private int mSpanCount;
     private int mCellSize;
+    private int mDisplayableItems;
 
     public static PhotoGalleryFragment newInstance() {
         return new PhotoGalleryFragment();
@@ -152,6 +153,9 @@ public class PhotoGalleryFragment extends Fragment {
 
         mCellSize = (int) width / mSpanCount;
         Log.d(TAG, "setSpanCount: cellSize = " + mCellSize);
+
+        float height = mPhotoRecyclerView.getHeight();
+        mDisplayableItems = (int) (mSpanCount * Math.ceil(height / mCellSize));
     }
 
     private class PhotoHolder extends RecyclerView.ViewHolder {
