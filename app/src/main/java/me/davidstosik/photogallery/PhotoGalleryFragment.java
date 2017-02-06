@@ -33,6 +33,7 @@ public class PhotoGalleryFragment extends Fragment {
     private RecyclerView mPhotoRecyclerView;
     private List<GalleryItem> mItems = new ArrayList<>();
     private ThumbnailDownloader<PhotoHolder> mThumbnailDownloader;
+    private ThumbnailDownloader<String> mThumbnailPreloader;
     private int mLastPage;
     private int mSpanCount;
     private int mCellSize;
@@ -62,6 +63,11 @@ public class PhotoGalleryFragment extends Fragment {
         );
         mThumbnailDownloader.start();
         mThumbnailDownloader.getLooper();
+
+        mThumbnailPreloader = ThumbnailDownloader.getThumbnailPreloader();
+        mThumbnailPreloader.start();
+        mThumbnailPreloader.getLooper();
+
         Log.i(TAG, "onCreate: Background thread started");
     }
 
@@ -92,6 +98,7 @@ public class PhotoGalleryFragment extends Fragment {
     public void onDestroyView() {
         super.onDestroyView();
         mThumbnailDownloader.clearQueue();
+        mThumbnailPreloader.clearQueue();
     }
 
     @Override
@@ -127,6 +134,9 @@ public class PhotoGalleryFragment extends Fragment {
                             mLastPage++;
                             new FetchItemsTask().execute(mLastPage);
                         }
+
+                        mThumbnailPreloader.clearQueue();
+                        ((PhotoAdapter) mPhotoRecyclerView.getAdapter()).preloadAround();
                     }
                 });
             } else {
@@ -203,11 +213,48 @@ public class PhotoGalleryFragment extends Fragment {
             GalleryItem galleryItem = mGalleryItems.get(position);
             photoHolder.unbindDrawable();
             mThumbnailDownloader.queueThumbnail(photoHolder, galleryItem.getUrl());
+
+            if (position == 0) {
+                preloadAround(-1, mDisplayableItems - 1);
+            }
         }
 
         @Override
         public int getItemCount() {
             return mGalleryItems.size();
+        }
+
+        public void preloadAround() {
+            GridLayoutManager layoutManager = (GridLayoutManager) mPhotoRecyclerView.getLayoutManager();
+            int first = layoutManager.findFirstVisibleItemPosition();
+            int last = layoutManager.findLastVisibleItemPosition();
+
+            preloadAround(first, last);
+        }
+
+        public void preloadAround(int first, int last) {
+            Log.d(TAG, "preloadAround: first=" + String.valueOf(first) + ", last=" + String.valueOf(last));
+            Log.d(TAG, "preloadAround: " + mGalleryItems.size() + " items.");
+
+
+            if (last >= 0) {
+                preloadInterval(last + 1, last + mDisplayableItems);
+            }
+
+            if (first > 0) {
+                preloadInterval(first - mDisplayableItems, first - 1);
+            }
+        }
+
+        private void preloadInterval(int first, int last) {
+            for (int i = first; i <= last; i++) {
+                try {
+                    String url = mGalleryItems.get(i).getUrl();
+                    mThumbnailPreloader.queueThumbnail(url);
+                } catch (IndexOutOfBoundsException ioobe) {
+                    // Nothing.
+                }
+            }
         }
     }
 

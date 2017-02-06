@@ -4,6 +4,7 @@ import android.graphics.Bitmap;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Message;
+import android.os.Process;
 import android.util.Log;
 import android.util.LruCache;
 
@@ -17,7 +18,6 @@ import java.util.concurrent.ConcurrentMap;
 public class ThumbnailDownloader<T> extends HandlerThread {
     private static final String TAG = "ThumbnailDownloader";
     private static final int MESSAGE_DOWNLOAD = 0;
-    private static final int IMAGE_CACHE_SIZE = 16 * 1024 * 1024; // 16MiB
 
     private boolean mHasQuit = false;
     private Handler mRequestHandler;
@@ -39,6 +39,15 @@ public class ThumbnailDownloader<T> extends HandlerThread {
         mResponseHandler = responseHandler;
     }
 
+    private ThumbnailDownloader(Handler responseHandler, int priority) {
+        super(TAG, priority);
+        mResponseHandler = responseHandler;
+    }
+
+    public static ThumbnailDownloader<String> getThumbnailPreloader() {
+        return new ThumbnailDownloader(null, Process.THREAD_PRIORITY_LOWEST);
+    }
+
     @Override
     protected void onLooperPrepared() {
         mRequestHandler = new Handler() {
@@ -50,12 +59,7 @@ public class ThumbnailDownloader<T> extends HandlerThread {
                 }
             }
         };
-        mImageLruCache = new LruCache<String, Bitmap>(IMAGE_CACHE_SIZE) {
-            @Override
-            protected int sizeOf(String key, Bitmap value) {
-                return value.getByteCount();
-            }
-        };
+        mImageLruCache = ImageCache.getInstance().getLru();
     }
 
     @Override
@@ -65,13 +69,19 @@ public class ThumbnailDownloader<T> extends HandlerThread {
     }
 
     public void queueThumbnail(T target, String url) {
-        if (url == null) {
+        if (target == null) {
+            return;
+        } else if (url == null) {
             mRequestMap.remove(target);
         } else {
             mRequestMap.put(target, url);
             mRequestHandler.obtainMessage(MESSAGE_DOWNLOAD, target)
                     .sendToTarget();
         }
+    }
+
+    public void queueThumbnail(String url) {
+        queueThumbnail((T)url, url);
     }
 
     public void clearQueue() {
@@ -85,6 +95,10 @@ public class ThumbnailDownloader<T> extends HandlerThread {
         }
 
         final Bitmap bitmap = downloadImage(url);
+
+        if (mResponseHandler == null) {
+            return;
+        }
 
         mResponseHandler.post(new Runnable() {
             @Override
