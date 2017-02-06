@@ -58,12 +58,6 @@ public class ThumbnailDownloader<T> extends HandlerThread {
             protected int sizeOf(String key, Bitmap value) {
                 return value.getByteCount();
             }
-
-            @Override
-            protected Bitmap create(String key) {
-                Log.i(TAG, "create: Bitmap not found in cache...");
-                return new FlickrFetchr().fetchImage(key);
-            }
         };
     }
 
@@ -94,10 +88,7 @@ public class ThumbnailDownloader<T> extends HandlerThread {
             return;
         }
 
-        final Bitmap bitmap;
-        synchronized (mImagesCache) {
-            bitmap = mImagesCache.get(url);
-        }
+        final Bitmap bitmap = downloadImage(url);
         Log.i(TAG, "handleRequest: Bitmap created");
 
         mResponseHandler.post(new Runnable() {
@@ -110,5 +101,17 @@ public class ThumbnailDownloader<T> extends HandlerThread {
                 mThumbnailDownloadListener.onThumbnailDownloaded(target, bitmap);
             }
         });
+    }
+
+    private Bitmap downloadImage(String url) {
+        Bitmap bitmap;
+        synchronized (mImagesCache) {
+            bitmap = mImagesCache.get(url);
+        }
+        if (bitmap == null) {
+            Log.i(TAG, "create: Bitmap not found in cache...");
+            return new FlickrFetchr().fetchImage(url);
+        }
+        return bitmap;
     }
 }
