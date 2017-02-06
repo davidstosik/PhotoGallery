@@ -1,14 +1,12 @@
 package me.davidstosik.photogallery;
 
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Message;
 import android.util.Log;
 import android.util.LruCache;
 
-import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -17,16 +15,16 @@ import java.util.concurrent.ConcurrentMap;
  */
 
 public class ThumbnailDownloader<T> extends HandlerThread {
-    public static final String TAG = "ThumbnailDownloader";
-    public static final int MESSAGE_DOWNLOAD = 0;
-    public static final int IMAGE_CACHE_SIZE = 16 * 1024 * 1024; // 16MiB
+    private static final String TAG = "ThumbnailDownloader";
+    private static final int MESSAGE_DOWNLOAD = 0;
+    private static final int IMAGE_CACHE_SIZE = 16 * 1024 * 1024; // 16MiB
 
     private boolean mHasQuit = false;
     private Handler mRequestHandler;
     private ConcurrentMap<T, String> mRequestMap = new ConcurrentHashMap();
     private Handler mResponseHandler;
     private ThumbnailDownloadListener<T> mThumbnailDownloadListener;
-    private LruCache<String, Bitmap> mImagesCache;
+    private LruCache<String, Bitmap> mImageLruCache;
 
     public interface ThumbnailDownloadListener<T> {
         void onThumbnailDownloaded(T target, Bitmap thumbnail);
@@ -48,12 +46,11 @@ public class ThumbnailDownloader<T> extends HandlerThread {
             public void handleMessage(Message msg) {
                 if (msg.what == MESSAGE_DOWNLOAD) {
                     T target = (T) msg.obj;
-                    Log.i(TAG, "handleMessage: Got a request for URL: " + mRequestMap.get(target));
                     handleRequest(target);
                 }
             }
         };
-        mImagesCache = new LruCache<String, Bitmap>(IMAGE_CACHE_SIZE) {
+        mImageLruCache = new LruCache<String, Bitmap>(IMAGE_CACHE_SIZE) {
             @Override
             protected int sizeOf(String key, Bitmap value) {
                 return value.getByteCount();
@@ -68,7 +65,6 @@ public class ThumbnailDownloader<T> extends HandlerThread {
     }
 
     public void queueThumbnail(T target, String url) {
-        Log.i(TAG, "queueThumbnail: Got a URL: " + url);
         if (url == null) {
             mRequestMap.remove(target);
         } else {
@@ -89,7 +85,6 @@ public class ThumbnailDownloader<T> extends HandlerThread {
         }
 
         final Bitmap bitmap = downloadImage(url);
-        Log.i(TAG, "handleRequest: Bitmap created");
 
         mResponseHandler.post(new Runnable() {
             @Override
@@ -105,13 +100,29 @@ public class ThumbnailDownloader<T> extends HandlerThread {
 
     private Bitmap downloadImage(String url) {
         Bitmap bitmap;
-        synchronized (mImagesCache) {
-            bitmap = mImagesCache.get(url);
+        synchronized (mImageLruCache) {
+            bitmap = mImageLruCache.get(url);
         }
+        logCacheStats();
         if (bitmap == null) {
-            Log.i(TAG, "create: Bitmap not found in cache...");
-            return new FlickrFetchr().fetchImage(url);
+            Log.i(TAG, "downloadImage: Bitmap not found in cache: " + url);
+            bitmap = new FlickrFetchr().fetchImage(url);
+            synchronized (mImageLruCache) {
+                mImageLruCache.put(url, bitmap);
+            }
+            logCacheStats();
+            Log.d(TAG, "downloadImage: size = " + bitmap.getByteCount());
+            return bitmap;
         }
         return bitmap;
+    }
+
+    private void logCacheStats() {
+        synchronized (mImageLruCache) {
+            Log.d(TAG, "downloadImage: cache => " + mImageLruCache.evictionCount() + " evictions, " +
+                    mImageLruCache.hitCount() + " hits, " +
+                    mImageLruCache.missCount() + " misses, " +
+                    mImageLruCache.putCount() + " puts.");
+        }
     }
 }
