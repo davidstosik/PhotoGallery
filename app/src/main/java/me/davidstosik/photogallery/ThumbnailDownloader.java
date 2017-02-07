@@ -117,26 +117,17 @@ public class ThumbnailDownloader<T> extends HandlerThread {
         synchronized (mImageLruCache) {
             bitmap = mImageLruCache.get(url);
         }
-        logCacheStats();
+        ImageCache.logCacheStats();
         if (bitmap == null) {
             Log.i(TAG, "downloadImage: Bitmap not found in cache: " + url);
             bitmap = new FlickrFetchr().fetchImage(url);
             synchronized (mImageLruCache) {
                 mImageLruCache.put(url, bitmap);
             }
-            logCacheStats();
+            ImageCache.logCacheStats();
             Log.d(TAG, "downloadImage: size = " + bitmap.getByteCount());
             return bitmap;
         }
         return bitmap;
-    }
-
-    private void logCacheStats() {
-        synchronized (mImageLruCache) {
-            Log.d(TAG, "downloadImage: cache => " + mImageLruCache.evictionCount() + " evictions, " +
-                    mImageLruCache.hitCount() + " hits, " +
-                    mImageLruCache.missCount() + " misses, " +
-                    mImageLruCache.putCount() + " puts.");
-        }
     }
 }

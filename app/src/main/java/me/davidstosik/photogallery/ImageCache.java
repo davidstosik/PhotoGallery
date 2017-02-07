@@ -1,6 +1,7 @@
 package me.davidstosik.photogallery;
 
 import android.graphics.Bitmap;
+import android.util.Log;
 import android.util.LruCache;
 
 /**
@@ -31,5 +32,15 @@ public class ImageCache {
 
     public LruCache<String, Bitmap> getLru() {
         return mCache;
+    }
+
+    public static void logCacheStats() {
+        LruCache cache = getInstance().getLru();
+
+        synchronized (cache) {
+            Log.d(TAG, "logCacheStats: " + cache
+                    + ",puts=" + cache.putCount()
+                    + ",evictions=" + cache.evictionCount());
+        }
     }
 }
