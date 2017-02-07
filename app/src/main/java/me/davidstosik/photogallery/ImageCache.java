@@ -10,9 +10,12 @@ import android.util.LruCache;
 
 public class ImageCache {
     private static final String TAG = "ImageCache";
-    private static ImageCache sImageCache;
     private LruCache<String, Bitmap> mCache;
     private static final int CACHE_SIZE = 32 * 1024 * 1024;
+
+    private static class Holder {
+        static final ImageCache INSTANCE = new ImageCache();
+    }
 
     private ImageCache() {
         mCache = new LruCache<String, Bitmap>(CACHE_SIZE) {
@@ -24,10 +27,7 @@ public class ImageCache {
     }
 
     public static ImageCache getInstance() {
-        if (sImageCache == null) {
-            sImageCache = new ImageCache();
-        }
-        return sImageCache;
+        return Holder.INSTANCE;
     }
 
     public LruCache<String, Bitmap> getLru() {
