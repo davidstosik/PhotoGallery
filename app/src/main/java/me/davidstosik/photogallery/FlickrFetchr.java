@@ -23,9 +23,9 @@ import me.davidstosik.photogallery.flickr.PhotosResponse;
  */
 
 public class FlickrFetchr {
-    public static final String TAG = "FlickrFetchr";
+    private static final String TAG = "FlickrFetchr";
 
-    public static final String API_KEY = "f6272651d8e3d238580152cb6bf8e5f0";
+    private static final String API_KEY = "f6272651d8e3d238580152cb6bf8e5f0";
 
     public byte[] getUrlBytes(String urlSpec) throws IOException {
         URL url = new URL(urlSpec);
