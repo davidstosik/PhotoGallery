@@ -9,8 +9,12 @@ import android.os.Handler;
 import android.support.v4.app.Fragment;
 import android.support.v7.widget.GridLayoutManager;
 import android.support.v7.widget.RecyclerView;
+import android.support.v7.widget.SearchView;
 import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
@@ -47,8 +51,9 @@ public class PhotoGalleryFragment extends Fragment {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setRetainInstance(true);
+        setHasOptionsMenu(true);
         mLastPage = 0;
-        new FetchItemsTask().execute(mLastPage);
+        updateItems();
 
         Handler responseHandler = new Handler();
         mThumbnailDownloader = new ThumbnailDownloader<>(responseHandler);
@@ -67,8 +72,6 @@ public class PhotoGalleryFragment extends Fragment {
         mThumbnailPreloader = ThumbnailDownloader.getThumbnailPreloader();
         mThumbnailPreloader.start();
         mThumbnailPreloader.getLooper();
-
-        Log.i(TAG, "onCreate: Background thread started");
     }
 
     @Override
@@ -81,8 +84,31 @@ public class PhotoGalleryFragment extends Fragment {
             @Override
             public void onGlobalLayout() {
                 setSpanCount();
+            }
+        });
+
+        mPhotoRecyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
+            @Override
+            public void onScrollStateChanged(RecyclerView recyclerView, int newState) {
+                Log.d(TAG, "onScrollStateChanged: " + newState);
+                super.onScrollStateChanged(recyclerView, newState);
+
+                if (newState != RecyclerView.SCROLL_STATE_IDLE) {
+                    return;
+                }
+
                 GridLayoutManager layoutManager = (GridLayoutManager) mPhotoRecyclerView.getLayoutManager();
-                layoutManager.setSpanCount(mSpanCount);
+                int totalItemCount = layoutManager.getItemCount();
+                int lastVisibleItem = layoutManager.findLastVisibleItemPosition();
+
+                if (lastVisibleItem == totalItemCount - 1) {
+                    Log.d(TAG, "onScrollStateChanged: End of list");
+                    mLastPage++;
+                    updateItems();
+                }
+
+                mThumbnailPreloader.clearQueue();
+                ((PhotoAdapter) mPhotoRecyclerView.getAdapter()).preloadAround();
             }
         });
 
@@ -105,45 +131,99 @@ public class PhotoGalleryFragment extends Fragment {
     public void onDestroy() {
         super.onDestroy();
         mThumbnailDownloader.quit();
-        Log.i(TAG, "onDestroy: Background thread destroyed");
+        mThumbnailPreloader.quit();
+    }
+
+    @Override
+    public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
+        super.onCreateOptionsMenu(menu, inflater);
+        inflater.inflate(R.menu.fragment_photo_gallery, menu);
+
+        MenuItem searchItem = menu.findItem(R.id.menu_item_search);
+        final SearchView searchView = (SearchView) searchItem.getActionView();
+
+        searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
+            @Override
+            public boolean onQueryTextSubmit(String query) {
+                Log.d(TAG, "onQueryTextSubmit: " + query);
+                QueryPreferences.setStoredQuery(getContext(), query);
+
+                clearItems();
+                updateItems();
+                return true;
+            }
+
+            @Override
+            public boolean onQueryTextChange(String newText) {
+                Log.d(TAG, "onQueryTextChange: " + newText);
+                return false;
+            }
+        });
+
+        searchView.setOnSearchClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                Log.d(TAG, "onClick");
+                String query = QueryPreferences.getStoredQuery(getContext());
+                searchView.setQuery(query, false);
+            }
+        });
+
+        searchView.setOnCloseListener(new SearchView.OnCloseListener() {
+            @Override
+            public boolean onClose() {
+                Log.d(TAG, "onClose");
+                String query = searchView.getQuery().toString();
+                QueryPreferences.setStoredQuery(getContext(), query);
+                return false;
+            }
+        });
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case R.id.menu_item_clear:
+                QueryPreferences.setStoredQuery(getActivity(), null);
+                clearItems();
+                updateItems();
+                return true;
+            default:
+                return super.onOptionsItemSelected(item);
+        }
+    }
+
+    private void clearItems() {
+        mLastPage = 0;
+        int oldSize = mItems.size();
+        mItems.clear();
+        PhotoAdapter adapter = (PhotoAdapter) mPhotoRecyclerView.getAdapter();
+        adapter.notifyItemRangeRemoved(0, oldSize);
+
+        mThumbnailDownloader.clearQueue();
+        mThumbnailPreloader.clearQueue();
+    }
+
+    private void updateItems() {
+        String query = QueryPreferences.getStoredQuery(getActivity());
+        new FetchItemsTask(query, mLastPage).execute();
     }
 
     private void setupAdapter() {
         if (isAdded()) {
-            PhotoAdapter adapter = (PhotoAdapter) mPhotoRecyclerView.getAdapter();
-
-            if (adapter == null) {
-                adapter = new PhotoAdapter(mItems);
-                mPhotoRecyclerView.setAdapter(adapter);
-                mPhotoRecyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
-                    @Override
-                    public void onScrollStateChanged(RecyclerView recyclerView, int newState) {
-                        Log.d(TAG, "onScrollStateChanged: " + newState);
-                        super.onScrollStateChanged(recyclerView, newState);
-
-                        if (newState != RecyclerView.SCROLL_STATE_IDLE) {
-                            return;
-                        }
-
-                        GridLayoutManager layoutManager = (GridLayoutManager) mPhotoRecyclerView.getLayoutManager();
-                        int totalItemCount = layoutManager.getItemCount();
-                        int lastVisibleItem = layoutManager.findLastVisibleItemPosition();
-
-                        if (lastVisibleItem == totalItemCount - 1) {
-                            Log.d(TAG, "onScrolled: End of list");
-                            mLastPage++;
-                            new FetchItemsTask().execute(mLastPage);
-                        }
-
-                        mThumbnailPreloader.clearQueue();
-                        ((PhotoAdapter) mPhotoRecyclerView.getAdapter()).preloadAround();
-                    }
-                });
-            } else {
-                adapter.notifyItemInserted(mItems.size() - 1);
-            }
+            PhotoAdapter adapter = new PhotoAdapter(mItems);
+            mPhotoRecyclerView.setAdapter(adapter);
         }
     }
+
+    private void updateAdapter(int positionStart, int size) {
+        PhotoAdapter adapter = (PhotoAdapter) mPhotoRecyclerView.getAdapter();
+        adapter.notifyItemRangeInserted(positionStart, size);
+        if (mLastPage > 0) {
+            mPhotoRecyclerView.scrollBy(0, mCellSize / 2);
+        }
+    }
+
 
     private int getMinSpanCount() {
         return getResources().getInteger(R.integer.min_span_count);
@@ -153,16 +233,13 @@ public class PhotoGalleryFragment extends Fragment {
         float width = mPhotoRecyclerView.getWidth();
         float minWidth = getResources().getDimension(R.dimen.min_cell_width);
 
-        Log.d(TAG, "setSpanCount: width = " + width);
-        Log.d(TAG, "setSpanCount: minWidth = " + minWidth);
-
         int computedSpanCount = (int) Math.floor(width / minWidth);
-        Log.d(TAG, "setSpanCount: computed span count = " + computedSpanCount);
         mSpanCount = Math.max(computedSpanCount, getMinSpanCount());
-        Log.d(TAG, "setSpanCount: final span count = " + mSpanCount);
+
+        GridLayoutManager layoutManager = (GridLayoutManager) mPhotoRecyclerView.getLayoutManager();
+        layoutManager.setSpanCount(mSpanCount);
 
         mCellSize = (int) width / mSpanCount;
-        Log.d(TAG, "setSpanCount: cellSize = " + mCellSize);
 
         float height = mPhotoRecyclerView.getHeight();
         mDisplayableItems = (int) (mSpanCount * Math.ceil(height / mCellSize));
@@ -234,8 +311,6 @@ public class PhotoGalleryFragment extends Fragment {
 
         public void preloadAround(int first, int last) {
             Log.d(TAG, "preloadAround: first=" + String.valueOf(first) + ", last=" + String.valueOf(last));
-            Log.d(TAG, "preloadAround: " + mGalleryItems.size() + " items.");
-
 
             if (last >= 0) {
                 preloadInterval(last + 1, last + mDisplayableItems);
@@ -258,20 +333,33 @@ public class PhotoGalleryFragment extends Fragment {
         }
     }
 
-    private class FetchItemsTask extends AsyncTask<Integer,Void,List<GalleryItem>> {
+    private class FetchItemsTask extends AsyncTask<Void,Void,List<GalleryItem>> {
+        private String mQuery;
+        private int mPage;
+
+        public FetchItemsTask(String query, int page) {
+            Log.d(TAG, "FetchItemsTask: new query=" + query + " | page=" + String.valueOf(page));
+            mQuery = query;
+            mPage = page;
+        }
+
         @Override
-        protected List<GalleryItem> doInBackground(Integer... params) {
-            int page = 0;
-            if (params.length > 0) {
-                page = params[0].intValue();
+        protected List<GalleryItem> doInBackground(Void... params) {
+            List<GalleryItem> result;
+            if (mQuery == null || mQuery.equals("")) {
+                result = new FlickrFetchr().fetchRecentPhotos(mPage);
+            } else {
+                result = new FlickrFetchr().searchPhotos(mQuery, mPage);
             }
-            return new FlickrFetchr().fetchItems(page);
+            return result;
         }
 
         @Override
         protected void onPostExecute(List<GalleryItem> items) {
+            int positionStart = mItems.size();
             mItems.addAll(items);
-            setupAdapter();
+
+            updateAdapter(positionStart, items.size());
         }
     }
 }
