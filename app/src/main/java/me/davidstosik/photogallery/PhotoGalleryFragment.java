@@ -35,6 +35,7 @@ public class PhotoGalleryFragment extends Fragment {
     public static final String TAG = "PhotoGalleryFragment";
 
     private RecyclerView mPhotoRecyclerView;
+    private View mLoadingView;
     private List<GalleryItem> mItems = new ArrayList<>();
     private ThumbnailDownloader<PhotoHolder> mThumbnailDownloader;
     private ThumbnailDownloader<String> mThumbnailPreloader;
@@ -77,6 +78,8 @@ public class PhotoGalleryFragment extends Fragment {
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         View v = inflater.inflate(R.layout.fragment_photo_gallery, container, false);
+
+        mLoadingView = v.findViewById(R.id.fragment_photo_gallery_progress_bar);
 
         mPhotoRecyclerView = (RecyclerView) v.findViewById(R.id.fragment_photo_gallery_recycler_view);
 
@@ -139,7 +142,7 @@ public class PhotoGalleryFragment extends Fragment {
         super.onCreateOptionsMenu(menu, inflater);
         inflater.inflate(R.menu.fragment_photo_gallery, menu);
 
-        MenuItem searchItem = menu.findItem(R.id.menu_item_search);
+        final MenuItem searchItem = menu.findItem(R.id.menu_item_search);
         final SearchView searchView = (SearchView) searchItem.getActionView();
 
         searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
@@ -147,6 +150,9 @@ public class PhotoGalleryFragment extends Fragment {
             public boolean onQueryTextSubmit(String query) {
                 Log.d(TAG, "onQueryTextSubmit: " + query);
                 QueryPreferences.setStoredQuery(getContext(), query);
+
+                searchView.setQuery("", false);
+                searchView.setIconified(true);
 
                 clearItems();
                 updateItems();
@@ -172,9 +178,7 @@ public class PhotoGalleryFragment extends Fragment {
         searchView.setOnCloseListener(new SearchView.OnCloseListener() {
             @Override
             public boolean onClose() {
-                Log.d(TAG, "onClose");
-                String query = searchView.getQuery().toString();
-                QueryPreferences.setStoredQuery(getContext(), query);
+                Log.d(TAG, "onClose: " + searchView.getQuery());
                 return false;
             }
         });
@@ -206,6 +210,9 @@ public class PhotoGalleryFragment extends Fragment {
 
     private void updateItems() {
         String query = QueryPreferences.getStoredQuery(getActivity());
+        if (mPhotoRecyclerView != null && mLastPage == 0) {
+            mLoadingView.setVisibility(View.VISIBLE);
+        }
         new FetchItemsTask(query, mLastPage).execute();
     }
 
@@ -222,6 +229,8 @@ public class PhotoGalleryFragment extends Fragment {
         if (mLastPage > 0) {
             mPhotoRecyclerView.scrollBy(0, mCellSize / 2);
         }
+
+        mLoadingView.setVisibility(View.GONE);
     }
 
 
@@ -253,7 +262,7 @@ public class PhotoGalleryFragment extends Fragment {
             super(itemView);
             RelativeLayout layout = (RelativeLayout) itemView.findViewById(R.id.fragment_photo_gallery_layout);
             mItemImageView = (ImageView) itemView.findViewById(R.id.fragment_photo_gallery_image_view);
-            mItemProgressBar = (ProgressBar) itemView.findViewById(R.id.fragment_photo_gallery_progress_bar);
+            mItemProgressBar = (ProgressBar) itemView.findViewById(R.id.fragment_photo_item_progress_bar);
 
             layout.getLayoutParams().height = mCellSize;
         }
