@@ -100,7 +100,7 @@ public class PhotoGalleryFragment extends Fragment {
                     return;
                 }
 
-                GridLayoutManager layoutManager = (GridLayoutManager) mPhotoRecyclerView.getLayoutManager();
+                GridLayoutManager layoutManager = (GridLayoutManager) recyclerView.getLayoutManager();
                 int totalItemCount = layoutManager.getItemCount();
                 int lastVisibleItem = layoutManager.findLastVisibleItemPosition();
 
@@ -111,7 +111,7 @@ public class PhotoGalleryFragment extends Fragment {
                 }
 
                 mThumbnailPreloader.clearQueue();
-                ((PhotoAdapter) mPhotoRecyclerView.getAdapter()).preloadAround();
+                ((PhotoAdapter) recyclerView.getAdapter()).preloadAround();
             }
         });
 
